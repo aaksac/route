@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Öğrenci Yoklama Sistemi</title>
+  <style>
+    /* Genel Stil */
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f7f7f7;
+      color: #333;
+      padding-bottom: 60px; /* Footer yüksekliği kadar boşluk */
+    }
+    /* Header */
+    .header {
+      background: #2980b9;
+      color: #fff;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 26px;
+      flex: 1;
+      text-align: center;
+    }
+    .admin-btn {
+      background: #fff;
+      color: #2980b9;
+      border: none;
+      padding: 8px 16px;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .admin-btn:hover {
+      background: #ecf0f1;
+    }
+    /* Öğrenci Yoklama Formu Konteyneri (Admin girişi gerektirmeden herkese açık) */
+    .attendance-container {
+      max-width: 500px;
+      margin: 30px auto 70px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 6px;
+      box-shadow: 0 0 12px rgba(0,0,0,0.1);
+    }
+    /* Diğer Containerlar (örneğin Admin Paneli) */
+    .container {
+      max-width: 800px;
+      margin: 30px auto 70px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 6px;
+      box-shadow: 0 0 12px rgba(0,0,0,0.1);
+    }
+    /* Form Stil */
+    form {
+      margin-top: 20px;
+    }
+    form label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    form input, form select, form button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      box-sizing: border-box;
+      max-width: 350px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    form button {
+      background: #2980b9;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      margin-top: 15px;
+    }
+    form button:hover {
+      background: #3498db;
+    }
+    /* Öğrenci Yoklama Formu butonlarının özel stili */
+    /* Bu kural yalnızca #attendanceForm içindeki butonlara uygulanır */
+    #attendanceForm button {
+      width: auto;
+      max-width: none;
+      display: inline-block;
+      padding: 8px 16px;
+    }
+    input[readonly] {
+      background: #eee;
+    }
+    /* Modal Stil */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.5);
+    }
+    .modal-content {
+      background-color: #fff;
+      margin: 10% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 300px;
+      border-radius: 4px;
+      position: relative;
+    }
+    .close {
+      color: #aaa;
+      position: absolute;
+      right: 10px;
+      top: 5px;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .close:hover, .close:focus {
+      color: #000;
+    }
+    /* Tab / Admin Panel Sekmeleri */
+    .tab-buttons {
+      margin: 15px 0;
+      display: flex;
+      gap: 10px;
+    }
+    .tab-buttons button {
+      flex: 1;
+      background: #2980b9;
+      color: #fff;
+      border: none;
+      padding: 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .tab-buttons button.active {
+      background: #3498db;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    /* Basit Tablo Stili */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    table, th, td {
+      border: 1px solid #ccc;
+    }
+    th, td {
+      padding: 8px;
+      text-align: center;
+      font-size: 13px;
+    }
+    th {
+      background: #ecf0f1;
+    }
+    /* Footer Stil */
+    footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: #f7f7f7;
+      color: #333;
+      text-align: center;
+      padding: 10px 0;
+      font-size: 14px;
+      border-top: 1px solid #ccc;
+    }
+  </style>
+  
+  <!-- XLSX Kütüphanesi (Excel aktarımı için) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- jsPDF Kütüphanesi (PDF aktarımı için) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  
+  <script type="module">
+    // Firebase SDK: App, Auth, Firestore
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+    import { getFirestore, collection, query, where, getDocs, addDoc, setDoc, doc, getDoc, deleteDoc, updateDoc, arrayRemove } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+
+    // Firebase yapılandırması (Sizin verdiğiniz bilgiler)
+    const firebaseConfig = {
+      apiKey: "AIzaSyC9bIaAJsDvug9Ak2W97sfi0lHd3FRVWUQ",
+      authDomain: "participation-3ef2e.firebaseapp.com",
+      projectId: "participation-3ef2e",
+      storageBucket: "participation-3ef2e.firebasestorage.app",
+      messagingSenderId: "795719880848",
+      appId: "1:795719880848:web:39f23fd05a834a462a4815",
+      measurementId: "G-8KDQG5QB81"
+    };
+
+    // Firebase'i başlat
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // -------------------------
+    // Girdi sanitizasyon fonksiyonu
+    function sanitize(input) {
+      if (typeof input !== 'string') return input;
+      return input.replace(/&/g, "&amp;")
+                  .replace(/</g, "&lt;")
+                  .replace(/>/g, "&gt;")
+                  .replace(/"/g, "&quot;")
+                  .replace(/'/g, "&#039;");
+    }
+    // -------------------------
+
+    /* ---------- ÖĞRENCİ YOKLAMA FORMU (Herkese açık – Admin girişi gerektirmez) ---------- */
+    async function getStudentInfo() {
+      const studentNumber = document.getElementById("studentNumber").value.trim();
+      if (!studentNumber) {
+        alert("Lütfen öğrenci numaranızı girin.");
+        return;
+      }
+      const studentsRef = collection(db, "students");
+      const q = query(studentsRef, where("student_number", "==", studentNumber));
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.empty) {
+        alert("Öğrenci bulunamadı.");
+        return;
+      }
+      let studentData;
+      querySnapshot.forEach(doc => {
+        studentData = doc.data();
+      });
+      // Öğrenci bilgileri, formdaki gizli alanlara aktarılır ve ayrıca ekranda görüntülenir.
+      document.getElementById("firstName").value = studentData.first_name;
+      document.getElementById("lastName").value = studentData.last_name;
+      document.getElementById("studentInfoDisplay").textContent = `Ad: ${studentData.first_name} | Soyad: ${studentData.last_name}`;
+    }
+
+    async function submitAttendance(event) {
+      event.preventDefault();
+      const studentNumber = document.getElementById("studentNumber").value.trim();
+      const firstName = document.getElementById("firstName").value.trim();
+      const lastName = document.getElementById("lastName").value.trim();
+      const pin = document.getElementById("attPin").value.trim();
+      if (!studentNumber || !firstName || !lastName || !pin) {
+        alert("Lütfen öğrenci numarası, bilgileri ve PIN’i girin.");
+        return;
+      }
+
+      // PIN girişinin engellenip engellenmediğini kontrol et (öğrenciye özel)
+      const blockKey = "pinBlock_" + studentNumber;
+      const blockUntil = localStorage.getItem(blockKey);
+      const currentTime = new Date().getTime();
+      if (blockUntil && currentTime < Number(blockUntil)) {
+          const remainingMinutes = Math.ceil((Number(blockUntil) - currentTime) / (60 * 1000));
+          alert("PIN girişi 30 dakika boyunca engellendi. Lütfen " + remainingMinutes + " dakika sonra tekrar deneyin.");
+          return;
+      } else if (blockUntil) {
+          // Engelleme süresi dolmuşsa, ilgili kayıtları temizle
+          localStorage.removeItem(blockKey);
+          localStorage.removeItem("wrongAttempts_" + studentNumber);
+      }
+
+      const coursePinsRef = collection(db, "coursePins");
+      const q = query(coursePinsRef, where("pins", "array-contains", pin));
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.empty) {
+        // Yanlış PIN durumunda, deneme sayısını artır ve 5'e ulaşırsa 30 dakika engelle
+        const wrongKey = "wrongAttempts_" + studentNumber;
+        let wrongAttempts = Number(localStorage.getItem(wrongKey)) || 0;
+        wrongAttempts++;
+        localStorage.setItem(wrongKey, wrongAttempts);
+        if (wrongAttempts >= 5) {
+          const blockTime = currentTime + 30 * 60 * 1000; // 30 dakika
+          localStorage.setItem(blockKey, blockTime);
+          localStorage.removeItem(wrongKey);
+          alert("5 kez yanlış PIN girdiniz. 30 dakika boyunca PIN girişi engellendi.");
+        } else {
+          alert("Geçersiz PIN. Lütfen kontrol edin. 5 hatalı girişte 30 dk bekleme süresi uygulanır. Kalan deneme hakkı: " + (5 - wrongAttempts));
+        }
+        return;
+      }
+      // Doğru PIN girilmişse yanlış deneme sayısını sıfırla
+      localStorage.removeItem("wrongAttempts_" + studentNumber);
+
+      let courseDetails, courseDocRef;
+      querySnapshot.forEach(docSnap => {
+        courseDetails = docSnap.data();
+        courseDocRef = docSnap.ref;
+      });
+      // PIN tek kullanımlık: Kullanıldıktan sonra siliniyor.
+      await updateDoc(courseDocRef, {
+        pins: arrayRemove(pin)
+      });
+      try {
+        await addDoc(collection(db, "attendance"), {
+          student_number: studentNumber,
+          first_name: firstName,
+          last_name: lastName,
+          courseName: courseDetails.courseName,
+          week: courseDetails.week,
+          session: courseDetails.session,
+          pin: pin,
+          timestamp: new Date()
+        });
+        alert("Yoklamaya katılım kaydınız alındı.");
+        document.getElementById("attendanceForm").reset();
+        document.getElementById("studentInfoDisplay").textContent = "";
+      } catch (error) {
+        console.error("Yoklama kaydı eklenirken hata:", error);
+        alert("Bir hata oluştu: " + error.message);
+      }
+    }
+
+    /* ---------- ADMIN GİRİŞ MODALI ---------- */
+    async function adminLogin(event) {
+      event.preventDefault();
+      const email = document.getElementById("adminEmail").value;
+      const password = document.getElementById("adminPassword").value;
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        if (userCredential.user.email === "aksmayklop@gmail.com") {
+          closeModal();
+          showAdminPanel();
+          loadCourses();
+        } else {
+          alert("Bu email admin yetkisine sahip değil.");
+          await signOut(auth);
+        }
+      } catch (error) {
+        console.error("Admin girişi hatası:", error);
+        alert("Giriş başarısız. Lütfen bilgilerinizi kontrol edin.");
+      }
+    }
+    onAuthStateChanged(auth, user => {
+      if (user && user.email === "aksmayklop@gmail.com") {
+        showAdminPanel();
+        loadCourses();
+      }
+    });
+    async function adminLogout() {
+      await signOut(auth);
+      hideAdminPanel();
+    }
+    window.adminLogout = adminLogout;
+    
+    function openModal() {
+      document.getElementById("adminModal").style.display = "block";
+    }
+    function closeModal() {
+      document.getElementById("adminModal").style.display = "none";
+    }
+
+    /* ---------- ADMIN PANELİ GÖSTER/GİZLE ---------- */
+    function showAdminPanel() {
+      document.getElementById("adminPanelContainer").style.display = "block";
+    }
+    function hideAdminPanel() {
+      document.getElementById("adminPanelContainer").style.display = "none";
+    }
+
+    /* ---------- KURSLARI YÜKLE ve DROPDOWNLARA DOLDUR ---------- */
+    async function loadCourses() {
+      const coursesRef = collection(db, "courses");
+      const snapshot = await getDocs(coursesRef);
+      const courses = [];
+      snapshot.forEach(doc => {
+        courses.push({ id: doc.id, ...doc.data() });
+      });
+      const adminSelect = document.getElementById("courseSelectAdmin");
+      const adminSelectWeekly = document.getElementById("courseSelectAdminWeekly");
+      if (adminSelect) {
+        adminSelect.innerHTML = "";
+        courses.forEach(course => {
+          const option = document.createElement("option");
+          option.value = course.courseName;
+          option.textContent = course.courseName;
+          adminSelect.appendChild(option);
+        });
+      }
+      if (adminSelectWeekly) {
+        adminSelectWeekly.innerHTML = "";
+        courses.forEach(course => {
+          const option = document.createElement("option");
+          option.value = course.courseName;
+          option.textContent = course.courseName;
+          adminSelectWeekly.appendChild(option);
+        });
+      }
+      const courseListDiv = document.getElementById("courseList");
+      if (courseListDiv) {
+        courseListDiv.innerHTML = "";
+        courses.forEach(course => {
+          const div = document.createElement("div");
+          div.style.marginBottom = "8px";
+          div.textContent = course.courseName;
+          const delBtn = document.createElement("button");
+          delBtn.textContent = "Sil";
+          delBtn.style.marginLeft = "10px";
+          delBtn.style.padding = "4px 8px";
+          delBtn.onclick = async () => {
+            if (confirm(`"${course.courseName}" dersini silmek istediğinize emin misiniz?`)) {
+              await deleteCourse(course.courseName);
+              loadCourses();
+            }
+          };
+          div.appendChild(delBtn);
+          courseListDiv.appendChild(div);
+        });
+      }
+      const newStudentCourseSelect = document.getElementById("newStudentCourse");
+      if (newStudentCourseSelect) {
+        newStudentCourseSelect.innerHTML = "";
+        courses.forEach(course => {
+          const option = document.createElement("option");
+          option.value = course.courseName;
+          option.textContent = course.courseName;
+          newStudentCourseSelect.appendChild(option);
+        });
+      }
+      const attendanceCourseSelect = document.getElementById("attendanceCourseSelect");
+      if (attendanceCourseSelect) {
+        attendanceCourseSelect.innerHTML = "";
+        courses.forEach(course => {
+          const option = document.createElement("option");
+          option.value = course.courseName;
+          option.textContent = course.courseName;
+          attendanceCourseSelect.appendChild(option);
+        });
+      }
+    }
+    // Ders silme işlemi için ders şifresini de soruyoruz.
+    async function deleteCourse(courseName) {
+      try {
+        const coursePasswordInput = prompt("Lütfen dersin şifresini giriniz:");
+        if (!coursePasswordInput) {
+          alert("Ders şifresi gerekli.");
+          return;
+        }
+        const courseDoc = doc(db, "courses", courseName.replace(/\s+/g, "_"));
+        const courseSnap = await getDoc(courseDoc);
+        if (!courseSnap.exists()) {
+          alert("Ders bulunamadı.");
+          return;
+        }
+        const courseData = courseSnap.data();
+        if (courseData.password !== coursePasswordInput) {
+          alert("Ders şifresi yanlış.");
+          return;
+        }
+        await deleteDoc(courseDoc);
+        alert(`Ders "${courseName}" silindi.`);
+      } catch (error) {
+        console.error("Ders silinirken hata:", error);
+        alert("Ders silinirken hata oluştu.");
+      }
+    }
+
+    /* ---------- ADMIN: DERS EKLEME (Ders Şifresi EKLENDİ) ---------- */
+    async function handleAddCourse(event) {
+      event.preventDefault();
+      const courseName = document.getElementById("newCourseName").value.trim();
+      const coursePassword = document.getElementById("newCoursePassword").value.trim();
+      if (!courseName || !coursePassword) {
+        alert("Lütfen ders adı ve şifresini girin.");
+        return;
+      }
+      try {
+        const courseDoc = doc(db, "courses", courseName.replace(/\s+/g, "_"));
+        await setDoc(courseDoc, { courseName: courseName, password: coursePassword });
+        alert(`Ders "${courseName}" başarıyla eklendi.`);
+        document.getElementById("addCourseForm").reset();
+        loadCourses();
+      } catch (error) {
+        console.error("Ders eklenirken hata:", error);
+        alert("Ders eklenirken hata oluştu: " + error.message);
+      }
+    }
+
+    /* ---------- GLOBAL PIN OLUŞTURMA FONKSİYONU ---------- */
+    function generateSecurePin(length = 8) {
+      const charset = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      const array = new Uint32Array(length);
+      window.crypto.getRandomValues(array);
+      let pin = "";
+      for (let i = 0; i < length; i++) {
+        pin += charset[array[i] % charset.length];
+      }
+      return pin;
+    }
+    function generateUniquePins(pinCount) {
+      const usedPins = new Set();
+      const pins = [];
+      while (pins.length < pinCount) {
+        const pin = generateSecurePin();
+        if (!usedPins.has(pin)) {
+          usedPins.add(pin);
+          pins.push(pin);
+        }
+      }
+      return pins;
+    }
+    // PINleri ekrana yazdırırken global değişkene de aktaralım ki PDF için erişilebilsin
+    function displayPins(pins) {
+      const tableBody = document.getElementById("pinsTableBody");
+      tableBody.innerHTML = "";
+      pins.forEach((pin, index) => {
+        const row = document.createElement("tr");
+        const cellIndex = document.createElement("td");
+        cellIndex.textContent = index + 1;
+        const cellPin = document.createElement("td");
+        cellPin.textContent = pin;
+        row.appendChild(cellIndex);
+        row.appendChild(cellPin);
+        tableBody.appendChild(row);
+      });
+      // Global değişken: PDF aktarımında kullanılacak
+      window.currentPins = pins;
+    }
+
+    /* ---------- ADMIN: DERS PIN ATAMA (Öğrenci sayısına göre, öğrenci sayısı + 20 PIN) ---------- */
+    async function handleGenerateCoursePins(event) {
+      event.preventDefault();
+      const courseName = document.getElementById("courseSelectAdmin").value;
+      const coursePassword = document.getElementById("coursePasswordAdmin").value.trim();
+      const week = document.getElementById("pinWeek").value;
+      const session = document.getElementById("pinSession").value;
+      if (!courseName || !coursePassword || !week || !session) {
+        alert("Lütfen ders, ders şifresi, hafta ve ders saatini girin.");
+        return;
+      }
+      // Ders şifresini doğrula
+      const courseDocRef = doc(db, "courses", courseName.replace(/\s+/g, "_"));
+      const courseSnap = await getDoc(courseDocRef);
+      if (!courseSnap.exists()) {
+        alert("Ders bulunamadı.");
+        return;
+      }
+      const courseData = courseSnap.data();
+      if (courseData.password !== coursePassword) {
+        alert("Ders şifresi yanlış.");
+        return;
+      }
+      const studentsRef = collection(db, "students");
+      const q = query(studentsRef, where("course", "==", courseName));
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) {
+        alert("Bu derse kayıtlı öğrenci bulunamadı.");
+        return;
+      }
+      const studentCount = snapshot.size;
+      const pinCount = studentCount + 20;
+      const pins = generateUniquePins(pinCount);
+      const docId = courseName.replace(/\s+/g, "_") + "_" + week + "_" + session;
+      const coursePinsDoc = doc(db, "coursePins", docId);
+      await setDoc(coursePinsDoc, { courseName, week, session, pins });
+      alert(`PINler, ${pinCount} adet (öğrenci sayısı + 20) olarak atandı.`);
+      displayPins(pins);
+    }
+
+    async function handleLoadPins() {
+      const courseName = document.getElementById("courseSelectAdmin").value;
+      const coursePassword = document.getElementById("coursePasswordAdmin").value.trim();
+      const week = document.getElementById("pinWeek").value;
+      const session = document.getElementById("pinSession").value;
+      if (!courseName || !coursePassword || !week || !session) {
+        alert("Lütfen ders, ders şifresi, hafta ve ders saatini girin.");
+        return;
+      }
+      const courseDocRef = doc(db, "courses", courseName.replace(/\s+/g, "_"));
+      const courseSnap = await getDoc(courseDocRef);
+      if (!courseSnap.exists()) {
+        alert("Ders bulunamadı.");
+        return;
+      }
+      const courseData = courseSnap.data();
+      if (courseData.password !== coursePassword) {
+        alert("Ders şifresi yanlış.");
+        return;
+      }
+      const docId = courseName.replace(/\s+/g, "_") + "_" + week + "_" + session;
+      const coursePinsDoc = doc(db, "coursePins", docId);
+      const docSnap = await getDoc(coursePinsDoc);
+      if (!docSnap.exists()) {
+        alert("Bu ders/hafta/ders saati için PIN bulunamadı.");
+        return;
+      }
+      const data = docSnap.data();
+      if (!data.pins) {
+        alert("PIN listesi bulunamadı.");
+        return;
+      }
+      displayPins(data.pins);
+    }
+
+    /* ---------- ADMIN: ÖĞRENCİ LİSTESİNİN EXCEL'DEN AKTARIMI ---------- */
+    async function handleImportExcel(event) {
+      event.preventDefault();
+      const fileInput = document.getElementById("excelFileInput");
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert("Lütfen bir Excel dosyası seçin.");
+        return;
+      }
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        if (!jsonData.length) {
+          alert("Dosya boş ya da hatalı biçimde.");
+          return;
+        }
+        const studentsRef = collection(db, "students");
+        let importedCount = 0;
+        for (const row of jsonData) {
+          if (row.student_number && row.first_name && row.last_name && row.course) {
+            try {
+              await addDoc(studentsRef, {
+                student_number: row.student_number.toString().trim(),
+                first_name: row.first_name.toString().trim(),
+                last_name: row.last_name.toString().trim(),
+                course: row.course.toString().trim()
+              });
+              importedCount++;
+            } catch (error) {
+              console.error("Öğrenci eklenirken hata:", error);
+            }
+          }
+        }
+        alert(`${importedCount} öğrenci başarıyla aktarıldı.`);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    /* ---------- ADMIN: DERSE SONRADAN ÖĞRENCİ EKLE (Ders Dropdown) ---------- */
+    async function handleAddStudent(event) {
+      event.preventDefault();
+      const studentNumber = document.getElementById("newStudentNumber").value.trim();
+      const firstName = document.getElementById("newFirstName").value.trim();
+      const lastName = document.getElementById("newLastName").value.trim();
+      const course = document.getElementById("newStudentCourse").value;
+      if (!studentNumber || !firstName || !lastName || !course) {
+        alert("Lütfen tüm öğrenci bilgilerini (dahil ders) girin.");
+        return;
+      }
+      try {
+        await addDoc(collection(db, "students"), {
+          student_number: studentNumber,
+          first_name: firstName,
+          last_name: lastName,
+          course: course
+        });
+        alert("Öğrenci başarıyla eklendi.");
+        document.getElementById("addStudentForm").reset();
+      } catch (error) {
+        console.error("Öğrenci eklenirken hata:", error);
+        alert("Öğrenci eklenirken hata oluştu: " + error.message);
+      }
+    }
+
+    /* ---------- DETAYLI YOKLAMA RAPORU (SEÇİLEN DERSE ÖZEL) ---------- */
+    async function loadDetailedAttendance() {
+      const selectedCourse = document.getElementById("attendanceCourseSelect").value;
+      if (!selectedCourse) {
+        alert("Lütfen bir ders seçiniz.");
+        return;
+      }
+      const studentsRef = collection(db, "students");
+      const qStudents = query(studentsRef, where("course", "==", selectedCourse));
+      const studentsSnapshot = await getDocs(qStudents);
+      let studentList = {};
+      studentsSnapshot.forEach(doc => {
+        const data = doc.data();
+        const studentNo = data.student_number;
+        studentList[studentNo] = {
+          first_name: data.first_name,
+          last_name: data.last_name,
+          attendance: {}
+        };
+      });
+      const attendanceRef = collection(db, "attendance");
+      const qAttendance = query(attendanceRef, where("courseName", "==", selectedCourse));
+      const attendanceSnapshot = await getDocs(qAttendance);
+      attendanceSnapshot.forEach(doc => {
+        const data = doc.data();
+        const studentNo = data.student_number;
+        if (!studentList[studentNo]) {
+          studentList[studentNo] = {
+            first_name: data.first_name,
+            last_name: data.last_name,
+            attendance: {}
+          };
+        }
+        const key = `W${data.week}-S${data.session}`;
+        studentList[studentNo].attendance[key] = true;
+      });
+
+      const totalSessions = 15 * 4;
+      let headerHtml = `<tr>
+        <th>Öğrenci No</th>
+        <th>Ad</th>
+        <th>Soyad</th>`;
+      for (let week = 1; week <= 15; week++) {
+        for (let session = 1; session <= 4; session++) {
+          headerHtml += `<th>Hafta ${week} - Ders ${session}</th>`;
+        }
+      }
+      headerHtml += `<th>Devamsız</th></tr>`;
+      let rowsHtml = "";
+      for (const studentNo in studentList) {
+        const student = studentList[studentNo];
+        let presentCount = 0;
+        let rowHtml = `<tr>
+          <td>${sanitize(studentNo)}</td>
+          <td>${sanitize(student.first_name)}</td>
+          <td>${sanitize(student.last_name)}</td>`;
+        for (let week = 1; week <= 15; week++) {
+          for (let session = 1; session <= 4; session++) {
+            const key = `W${week}-S${session}`;
+            if (student.attendance[key]) {
+              rowHtml += `<td>✓</td>`;
+              presentCount++;
+            } else {
+              rowHtml += `<td></td>`;
+            }
+          }
+        }
+        const absentCount = totalSessions - presentCount;
+        rowHtml += `<td>${absentCount}</td></tr>`;
+        rowsHtml += rowHtml;
+      }
+      const tableHtml = `<h4>Detaylı Rapor - ${sanitize(selectedCourse)}</h4><table>${headerHtml}${rowsHtml}</table>`;
+      document.getElementById("detailedAttendanceList").innerHTML = tableHtml;
+    }
+
+    function exportDetailedAttendance() {
+      const reportDiv = document.getElementById("detailedAttendanceList");
+      if (!reportDiv.innerHTML.trim()) {
+        alert("Lütfen önce detaylı raporu yükleyin.");
+        return;
+      }
+      const table = reportDiv.querySelector("table");
+      if (!table) {
+        alert("Rapor tablosu bulunamadı.");
+        return;
+      }
+      const workbook = XLSX.utils.table_to_book(table, {sheet:"Detaylı Rapor"});
+      const wbout = XLSX.write(workbook, {bookType:'xlsx', type:'array'});
+      const blob = new Blob([wbout], {type:"application/octet-stream"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "detayli_yoklama_raporu.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    /* ---------- EXPORT: PDF OLUŞTURMA (PINler için özel biçimde) ---------- */
+    function exportToPDF() {
+      // Ders, hafta ve ders saati bilgilerini al
+      const courseName = document.getElementById("courseSelectAdmin").value || "Ders Bilgisi Yok";
+      const week = document.getElementById("pinWeek").value || "Hafta Yok";
+      const session = document.getElementById("pinSession").value || "Ders Saati Yok";
+      
+      // Globalde saklanan PIN listesi
+      const pins = window.currentPins || [];
+      
+      // PDF ayarları
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const margin = 10; // tüm kenarlarda 10 mm
+      
+      // Grid ayarları: 5 sütun, 30 satır, hücreler arası boşluk 3 mm
+      const columns = 5;
+      const rows = 30;
+      const gap = 3;
+      const pinsPerPage = columns * rows; // 150 PIN
+      const totalPages = Math.ceil(pins.length / pinsPerPage);
+      
+      for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+        // Header ayarları: Bold font, 10 punto
+        doc.setFont("times", "bold");
+        doc.setFontSize(10);
+        const headerText = `${courseName} - Hafta ${week} - Ders ${session}`;
+        const headerMaxWidth = pageWidth - 2 * margin;
+        const headerLines = doc.splitTextToSize(headerText, headerMaxWidth);
+        const lineHeight = doc.getFontSize() * 0.3528;
+        const headerTotalHeight = headerLines.length * lineHeight + 2; // 2 mm ekstra boşluk
+        // Header'ı sayfanın sol üst köşesine yazdırıyoruz:
+        let headerY = margin + lineHeight;
+        headerLines.forEach(line => {
+          doc.text(line, margin, headerY, { align: 'left' });
+          headerY += lineHeight;
+        });
+        
+        // Grid başlangıç noktası
+        const gridTop = margin + headerTotalHeight;
+        const availableWidth = pageWidth - 2 * margin;
+        const availableHeight = pageHeight - gridTop - margin;
+        const cellWidth = (availableWidth - (columns - 1) * gap) / columns;
+        const cellHeight = (availableHeight - (rows - 1) * gap) / rows;
+        
+        // Grid içindeki yazı fontu: Bold, 8 punto
+        doc.setFont("times", "bold");
+        doc.setFontSize(8);
+        
+        const startPin = pageIndex * pinsPerPage;
+        const pinsToPrint = pins.slice(startPin, startPin + pinsPerPage);
+        let pinIndex = 0;
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < columns; col++) {
+            const x = margin + col * (cellWidth + gap);
+            const y = gridTop + row * (cellHeight + gap);
+            doc.rect(x, y, cellWidth, cellHeight);
+            const pinText = (pinIndex < pinsToPrint.length) ? pinsToPrint[pinIndex] : "";
+            pinIndex++;
+            const textX = x + cellWidth / 2;
+            const textY = y + cellHeight / 2;
+            doc.text(pinText, textX, textY, { align: 'center', baseline: 'middle' });
+          }
+        }
+        
+        if (pageIndex < totalPages - 1) {
+          doc.addPage();
+        }
+      }
+      
+      doc.save("pins.pdf");
+    }
+
+    /* ---------- ADMIN: HAFTALIK PIN OLUŞTURMA (Her ders saati için 1 PIN) ---------- */
+    async function handleGenerateWeeklyPins(event) {
+      event.preventDefault();
+      const courseName = document.getElementById("courseSelectAdminWeekly").value;
+      const coursePassword = document.getElementById("coursePasswordAdminWeekly").value.trim();
+      const week = document.getElementById("pinWeekWeekly").value;
+      if (!courseName || !coursePassword || !week) {
+        alert("Lütfen ders, ders şifresi ve haftayı girin.");
+        return;
+      }
+      // Ders şifresini doğrula
+      const courseDocRef = doc(db, "courses", courseName.replace(/\s+/g, "_"));
+      const courseSnap = await getDoc(courseDocRef);
+      if (!courseSnap.exists()) {
+        alert("Ders bulunamadı.");
+        return;
+      }
+      const courseData = courseSnap.data();
+      if (courseData.password !== coursePassword) {
+        alert("Ders şifresi yanlış.");
+        return;
+      }
+      try {
+        let allPins = {};
+        for (let session = 1; session <= 4; session++) {
+          const pins = generateUniquePins(1);
+          const docId = courseName.replace(/\s+/g, "_") + "_" + week + "_" + session;
+          const coursePinsDoc = doc(db, "coursePins", docId);
+          await setDoc(coursePinsDoc, { courseName, week, session, pins });
+          allPins["DersSaati_" + session] = pins[0];
+        }
+        alert("Haftanın her ders saati için 1 PIN oluşturuldu.");
+      } catch (error) {
+        console.error("Haftalık PIN oluşturma hatası:", error);
+        alert("Haftalık PIN oluşturulurken hata oluştu: " + error.message);
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      // ÖĞRENCİ YOKLAMA FORMU (Admin girişi gerektirmeden herkese açık)
+      document.getElementById("attendanceForm").addEventListener("submit", submitAttendance);
+      document.getElementById("getInfoButton").addEventListener("click", getStudentInfo);
+      
+      // ADMIN İŞLEMLERİ
+      document.getElementById("adminLoginForm").addEventListener("submit", adminLogin);
+      document.getElementById("addCourseForm").addEventListener("submit", handleAddCourse);
+      document.getElementById("generatePinsForm").addEventListener("submit", handleGenerateCoursePins);
+      document.getElementById("generateWeeklyPinsButton").addEventListener("click", handleGenerateWeeklyPins);
+      document.getElementById("loadPinsButton").addEventListener("click", handleLoadPins);
+      document.getElementById("importExcelForm").addEventListener("submit", handleImportExcel);
+      document.getElementById("addStudentForm").addEventListener("submit", handleAddStudent);
+      document.getElementById("loadDetailedAttendanceButton").addEventListener("click", loadDetailedAttendance);
+      document.getElementById("exportAttendanceButton").addEventListener("click", exportDetailedAttendance);
+      document.getElementById("exportButton").addEventListener("click", () => {
+        const workbook = XLSX.utils.table_to_book(document.getElementById("pinsTable"), {sheet:"PINler"});
+        const wbout = XLSX.write(workbook, {bookType:'xlsx', type:'array'});
+        const blob = new Blob([wbout], {type:"application/octet-stream"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "pins.csv";
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+      document.getElementById("exportPDFButton").addEventListener("click", exportToPDF);
+      loadCourses();
+    });
+
+    window.openModal = openModal;
+    window.closeModal = closeModal;
+    window.openTab = openTab;
+    window.handleGenerateCoursePins = handleGenerateCoursePins;
+    window.handleAddStudent = handleAddStudent;
+    window.exportToPDF = exportToPDF;
+
+    function openTab(tabName) {
+      const tabs = document.getElementsByClassName("tab-content");
+      for (let i = 0; i < tabs.length; i++) {
+        tabs[i].classList.remove("active");
+        tabs[i].style.display = "none";
+      }
+      const selectedTab = document.getElementById(tabName);
+      selectedTab.classList.add("active");
+      selectedTab.style.display = "block";
+    }
+  </script>
+</head>
+<body>
+  <div class="header">
+    <h1>Öğrenci Yoklama Sistemi</h1>
+    <button class="admin-btn" onclick="openModal()">Admin Giriş</button>
+  </div>
+  
+  <!-- Öğrenci Yoklama Formu (Admin girişi gerektirmeden herkese açık) -->
+  <div class="attendance-container">
+    <h2>Öğrenci Yoklama Formu</h2>
+    <form id="attendanceForm">
+      <label for="studentNumber">Öğrenci Numarası:</label>
+      <input type="text" id="studentNumber" placeholder="Öğrenci numaranızı giriniz." required>
+      <button type="button" id="getInfoButton">Kimliğimi Doğrula</button>
+      <div id="studentInfoDisplay" style="margin-top:10px; font-weight:bold;"></div>
+      <!-- Bu alanlar, kimlik doğrulama sonrasında doldurulacaktır -->
+      <input type="text" id="firstName" placeholder="Adınız" readonly style="display:none;">
+      <input type="text" id="lastName" placeholder="Soyadınız" readonly style="display:none;">
+      <label for="attPin">PIN:</label>
+      <input type="text" id="attPin" placeholder="PIN’i giriniz." required>
+      <button type="submit">Katılımımı Onayla</button>
+    </form>
+  </div>
+  
+  <div id="adminModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeModal()">&times;</span>
+      <h2>Admin Girişi</h2>
+      <form id="adminLoginForm">
+        <label for="adminEmail">Email:</label>
+        <input type="email" id="adminEmail" placeholder="Admin emailinizi girin" required>
+        <label for="adminPassword">Parola:</label>
+        <input type="password" id="adminPassword" placeholder="Parolanızı girin" required>
+        <button type="submit">Giriş Yap</button>
+      </form>
+    </div>
+  </div>
+  
+  <div id="adminPanelContainer" class="container" style="display:none;">
+    <h2>Admin Paneli</h2>
+    <div class="tab-buttons">
+      <button id="coursesBtn" onclick="openTab('coursesTab')">Ders Ekleme/Silme</button>
+      <button id="pinsBtn" onclick="openTab('pinsTab')">PIN Atama</button>
+      <button id="studentsBtn" onclick="openTab('studentsTab')">Öğrenci Yönetimi</button>
+      <button id="attendanceBtn" onclick="openTab('attendanceTab')">Yoklama Raporu</button>
+    </div>
+    
+    <div id="coursesTab" class="tab-content active" style="display:block;">
+      <h3>Ders Ekle / Sil</h3>
+      <!-- Aşağıdaki formda autocomplete kapatılarak tarayıcı otomatik doldurması engellendi -->
+      <form id="addCourseForm" autocomplete="off">
+        <label for="newCourseName">Ders Adı:</label>
+        <input type="text" id="newCourseName" placeholder="Örn: Matematik" required autocomplete="off">
+        <label for="newCoursePassword">Ders Şifresi:</label>
+        <input type="password" id="newCoursePassword" placeholder="Ders şifresini girin" required autocomplete="new-password">
+        <button type="submit">Dersi Ekle</button>
+      </form>
+      <h4>Mevcut Dersler</h4>
+      <div id="courseList" style="margin-top:10px;"></div>
+    </div>
+    
+    <div id="pinsTab" class="tab-content" style="display:none;">
+      <h3>Ders PIN Atama</h3>
+      <form id="generatePinsForm">
+        <label for="courseSelectAdmin">Ders Seçiniz:</label>
+        <select id="courseSelectAdmin" required></select>
+        <label for="coursePasswordAdmin">Ders Şifresi:</label>
+        <input type="password" id="coursePasswordAdmin" placeholder="Ders şifresini girin" required>
+        <label for="pinWeek">Hafta:</label>
+        <input type="number" id="pinWeek" min="1" max="15" required>
+        <label for="pinSession">Ders Saati:</label>
+        <input type="number" id="pinSession" min="1" required>
+        <button type="button" onclick="handleGenerateCoursePins(event)">PINleri Oluştur</button>
+        <button type="button" id="loadPinsButton" onclick="handleLoadPins()">Var Olan PINleri Yükle</button>
+      </form>
+      <h4>Oluşturulan PINler (Öğrenci Sayısı + 20)</h4>
+      <table id="pinsTable">
+        <thead>
+          <tr>
+            <th>Index</th>
+            <th>PIN</th>
+          </tr>
+        </thead>
+        <tbody id="pinsTableBody"></tbody>
+      </table>
+      <button id="exportButton">Export to Excel (CSV)</button>
+      <button id="exportPDFButton">Export to PDF</button>
+      <hr>
+      <h3>Haftalık Tüm Ders PINleri (Her Ders Saati için 1 PIN)</h3>
+      <form id="weeklyPinsForm">
+        <label for="courseSelectAdminWeekly">Ders Seçiniz:</label>
+        <select id="courseSelectAdminWeekly" required></select>
+        <label for="coursePasswordAdminWeekly">Ders Şifresi:</label>
+        <input type="password" id="coursePasswordAdminWeekly" placeholder="Ders şifresini girin" required>
+        <label for="pinWeekWeekly">Hafta:</label>
+        <input type="number" id="pinWeekWeekly" min="1" max="15" required>
+        <button type="button" id="generateWeeklyPinsButton">Haftalık PINleri Oluştur</button>
+      </form>
+    </div>
+    
+    <div id="studentsTab" class="tab-content" style="display:none;">
+      <h3>Öğrenci Yönetimi</h3>
+      <div>
+        <h4>Öğrenci Listesini Excel'den Aktar</h4>
+        <p>Örnek şablonu indirmek için 
+          <a href="example_template.xlsx" download>buraya tıklayın</a><br>
+           (Sütunlar: <strong>student_number, first_name, last_name, course</strong>)
+        </p>
+        <form id="importExcelForm">
+          <input type="file" id="excelFileInput" accept=".xlsx, .xls" required>
+          <button type="submit">Aktar</button>
+        </form>
+      </div>
+      <div>
+        <h4>Derse Sonradan Öğrenci Ekle</h4>
+        <form id="addStudentForm">
+          <label for="newStudentNumber">Öğrenci Numarası:</label>
+          <input type="text" id="newStudentNumber" placeholder="Öğrenci numarası" required>
+          <label for="newFirstName">Ad:</label>
+          <input type="text" id="newFirstName" placeholder="Öğrencinin adı" required>
+          <label for="newLastName">Soyad:</label>
+          <input type="text" id="newLastName" placeholder="Öğrencinin soyadı" required>
+          <label for="newStudentCourse">Ders Seçiniz:</label>
+          <select id="newStudentCourse" required></select>
+          <button type="submit">Öğrenciyi Ekle</button>
+        </form>
+      </div>
+    </div>
+    
+    <div id="attendanceTab" class="tab-content" style="display:none;">
+      <h3>Detaylı Yoklama Raporu</h3>
+      <label for="attendanceCourseSelect">Ders Seçiniz:</label>
+      <select id="attendanceCourseSelect" required></select>
+      <button id="loadDetailedAttendanceButton">Detaylı Katılımı Yükle</button>
+      <button id="exportAttendanceButton" type="button" onclick="exportDetailedAttendance()">Detaylı Raporu Excel'e Aktar</button>
+      <div id="detailedAttendanceList"></div>
+    </div>
+    
+    <button onclick="adminLogout()">Admin Çıkış Yap</button>
+  </div>
+  
+  <footer>
+    Tüm hakları saklıdır. © 2025 | Designed by Ali AKSAÇ
+  </footer>
+</body>
+</html>
